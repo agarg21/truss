@@ -47,6 +47,12 @@ def ports():
     }
 
 
+def _kill_child_processes_fast(parent_pid, timeout_seconds=None):
+    from shared.util import kill_child_processes
+
+    kill_child_processes(parent_pid, timeout_seconds=2)
+
+
 @pytest.fixture
 def app(truss_container_fs, truss_original_hash, ports):
     with _env_var({"HASH_TRUSS": truss_original_hash}):
@@ -67,7 +73,15 @@ def app(truss_container_fs, truss_original_hash, ports):
             inference_server_controller.start()
             yield control_app
         finally:
-            inference_server_controller.stop()
+            # The controller waits up to 30 s for children to exit after SIGTERM
+            # before sending SIGKILL. On macOS a child of the test inference
+            # server can outlive SIGTERM, so each teardown took ~30 s. Tests
+            # don't need the grace period; SIGKILL still follows.
+            with patch(
+                "helpers.inference_server_process_controller.kill_child_processes",
+                _kill_child_processes_fast,
+            ):
+                inference_server_controller.stop()
 
 
 @pytest.fixture(
