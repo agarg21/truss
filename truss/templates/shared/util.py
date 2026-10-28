@@ -87,7 +87,11 @@ def _diag(label, parent, procs):  # fork-only diagnostic (agarg21/truss diag/tea
         return
     import subprocess
 
-    lines = [f"--- {label}: parent pid={parent.pid} cmd={' '.join(parent.cmdline()[:4])!r} n={len(procs)}"]
+    try:
+        pcmd = " ".join(parent.cmdline()[:4])
+    except Exception:  # noqa
+        pcmd = "<gone>"
+    lines = [f"--- {label}: parent pid={parent.pid} cmd={pcmd!r} n={len(procs)}"]
     for p in procs:
         try:
             info = f"pid={p.pid} ppid={p.ppid()} name={p.name()} status={p.status()} cmd={' '.join(p.cmdline())[:200]!r}"

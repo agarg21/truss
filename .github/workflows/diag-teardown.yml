@@ -20,12 +20,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {os: macos-14, py: max, uvpy: ''}
-          - {os: ubuntu-22.04, py: max, uvpy: ''}
-          - {os: ubuntu-22.04, py: max, uvpy: '3.14'}
+          - {os: macos-14, py: max, sm: ''}
+          - {os: ubuntu-22.04, py: max, sm: ''}
+          - {os: ubuntu-22.04, py: max, sm: 'forkserver'}
     runs-on: ${{ matrix.os }}
     env:
-      UV_PYTHON: ${{ matrix.uvpy }}
+      TRUSS_DIAG_START_METHOD: ${{ matrix.sm }}
     steps:
       - uses: actions/checkout@v4
         with:
