@@ -20,9 +20,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {os: macos-14, py: max}
-          - {os: ubuntu-22.04, py: max}
+          - {os: macos-14, py: max, uvpy: ''}
+          - {os: ubuntu-22.04, py: max, uvpy: ''}
+          - {os: ubuntu-22.04, py: max, uvpy: '3.14'}
     runs-on: ${{ matrix.os }}
+    env:
+      UV_PYTHON: ${{ matrix.uvpy }}
     steps:
       - uses: actions/checkout@v4
         with:
