@@ -1,0 +1,44 @@
+name: diag-teardown (fork-only)
+on:
+  push:
+    branches: ['diag/**', 'proto/**']
+jobs:
+  determine-python-versions:
+    runs-on: ubuntu-22.04
+    outputs:
+      min: ${{ steps.extract.outputs.min_supported_python_version }}
+      max: ${{ steps.extract.outputs.max_supported_python_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install tomlkit packaging
+      - id: extract
+        run: python .github/scripts/get-python-version-range.py
+  control-tests:
+    needs: determine-python-versions
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: macos-latest, py: max}
+          - {os: ubuntu-22.04, py: max}
+          - {os: ubuntu-22.04, py: min}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: ./.github/actions/setup-python/
+        with:
+          python-version: ${{ matrix.py == 'max' && needs.determine-python-versions.outputs.max || needs.determine-python-versions.outputs.min }}
+      - run: uv sync
+      - name: start method + versions
+        run: uv run python -c "import sys,multiprocessing as m,platform;print(sys.version, platform.platform(), 'default start method:', m.get_start_method())"
+      - name: control test_server.py
+        env:
+          TRUSS_DIAG_TEARDOWN: "1"
+          TRUSS_DIAG_LOG: ${{ runner.temp }}/diag.log
+        run: uv run pytest --durations=0 -m 'not integration' -p no:cacheprovider truss/tests/templates/control/control/test_server.py --basetemp=$RUNNER_TEMP/pytest-temp
+      - name: diagnostic log
+        if: always()
+        run: cat "$RUNNER_TEMP/diag.log" || echo "no diag log"

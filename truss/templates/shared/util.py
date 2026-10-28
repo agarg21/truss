@@ -71,8 +71,38 @@ def kill_child_processes(
     except psutil.NoSuchProcess:
         return
     children = parent.children(recursive=True)
+    _diag("terminate", parent, children)
+    _t0 = __import__("time").monotonic()
     for process in children:
         process.terminate()
     gone, alive = psutil.wait_procs(children, timeout=timeout_seconds)
+    _diag(f"after wait {__import__('time').monotonic() - _t0:.2f}s (timeout={timeout_seconds}) alive", parent, alive)
     for process in alive:
         process.kill()
+
+
+def _diag(label, parent, procs):  # fork-only diagnostic (agarg21/truss diag/teardown)
+    path = os.environ.get("TRUSS_DIAG_LOG")
+    if not os.environ.get("TRUSS_DIAG_TEARDOWN") or not path:
+        return
+    import subprocess
+
+    lines = [f"--- {label}: parent pid={parent.pid} cmd={' '.join(parent.cmdline()[:4])!r} n={len(procs)}"]
+    for p in procs:
+        try:
+            info = f"pid={p.pid} ppid={p.ppid()} name={p.name()} status={p.status()} cmd={' '.join(p.cmdline())[:200]!r}"
+        except Exception as e:  # noqa
+            info = f"pid={p.pid} <{type(e).__name__}>"
+        ign = ""
+        try:
+            if sys.platform == "linux":
+                for ln in open(f"/proc/{p.pid}/status"):
+                    if ln.startswith("SigIgn"):
+                        ign = ln.split()[1]
+            else:
+                ign = subprocess.run(["ps", "-o", "ignored=", "-p", str(p.pid)], capture_output=True, text=True).stdout.strip()
+        except Exception:
+            pass
+        lines.append(f"    {info} sigignored={ign}")
+    with open(path, "a") as f:
+        f.write("\n".join(lines) + "\n")
