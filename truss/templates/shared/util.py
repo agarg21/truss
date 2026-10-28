@@ -65,6 +65,7 @@ def all_processes_dead(procs: list[multiprocessing.Process]) -> bool:
 def kill_child_processes(
     parent_pid: int,
     timeout_seconds: Optional[float] = CHILD_PROCESS_WAIT_TIMEOUT_SECONDS,
+    include_parent: bool = False,
 ):
     try:
         parent = psutil.Process(parent_pid)
@@ -75,6 +76,13 @@ def kill_child_processes(
     _t0 = __import__("time").monotonic()
     for process in children:
         process.terminate()
+    if include_parent:
+        # Signal the parent before waiting: multiprocessing's resource_tracker
+        # (spawned under the "spawn"/"forkserver" start methods) ignores SIGTERM
+        # and only exits once its parent has exited, so waiting on the children
+        # first always runs into the timeout.
+        parent.terminate()
+        children = children + [parent]
     gone, alive = psutil.wait_procs(children, timeout=timeout_seconds)
     _diag(f"after wait {__import__('time').monotonic() - _t0:.2f}s (timeout={timeout_seconds}) alive", parent, alive)
     for process in alive:

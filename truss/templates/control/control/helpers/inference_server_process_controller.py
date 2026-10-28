@@ -53,8 +53,11 @@ class InferenceServerProcessController:
             return
         # Use a shorter timeout than the truss patch read timeout (=120s):
         # see remote/baseten/api.py:_post_graphql_query()
-        kill_child_processes(self._inference_server_process.pid, timeout_seconds=30)
-        self._inference_server_process.terminate()
+        # Children and parent get SIGTERM together and are then awaited together, so
+        # the port is still only free once everything has exited.
+        kill_child_processes(
+            self._inference_server_process.pid, timeout_seconds=30, include_parent=True
+        )
 
     def stop(self):
         if self._inference_server_process is not None:
